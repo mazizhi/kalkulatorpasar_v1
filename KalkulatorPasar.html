@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Kalkulator Pasar">
+<meta name="application-name" content="Kalkulator Pasar">
+<meta name="theme-color" content="#1a2535">
+<title>Kalkulator Pasar</title>
+
+<script>
+// ===== INLINE MANIFEST =====
+(function(){
+  // Ikon: kalkulator dengan tombol angka, latar hijau gelap
+  const iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+    <rect width="192" height="192" rx="28" fill="#1a7a3a"/>
+    <!-- badan kalkulator -->
+    <rect x="36" y="24" width="120" height="144" rx="14" fill="#0d1f14"/>
+    <rect x="36" y="24" width="120" height="144" rx="14" fill="none" stroke="#2ecc71" stroke-width="3"/>
+    <!-- layar -->
+    <rect x="48" y="36" width="96" height="32" rx="6" fill="#1a2535"/>
+    <text x="136" y="60" text-anchor="end" font-size="22" font-family="monospace" font-weight="bold" fill="#ffdd00">0</text>
+    <!-- tombol baris 1: 7 8 9 -->
+    <rect x="48" y="80" width="26" height="20" rx="5" fill="#2a3a4e"/>
+    <text x="61" y="94" text-anchor="middle" font-size="13" font-family="sans-serif" font-weight="bold" fill="#fff">7</text>
+    <rect x="83" y="80" width="26" height="20" rx="5" fill="#2a3a4e"/>
+    <text x="96" y="94" text-anchor="middle" font-size="13" font-family="sans-serif" font-weight="bold" fill="#fff">8</text>
+    <rect x="118" y="80" width="26" height="20" rx="5" fill="#2a3a4e"/>
+    <text x="131" y="94" text-anchor="middle" font-size="13" font-family="sans-serif" font-weight="bold" fill="#fff">9</text>
+    <!-- tombol baris 2: 4 5 6 -->
+    <rect x="48" y="106" width="26" height="20" rx="5" fill="#2a3a4e"/>
+    <text x="61" y="120" text-anchor="middle" font-size="13" font-family="sans-serif" font-weight="bold" fill="#fff">4</text>
+    <rect x="83" y="106" width="26" height="20" rx="5" fill="#2a3a4e"/>
+    <text x="96" y="120" text-anchor="middle" font-size="13" font-family="sans-serif" font-weight="bold" fill="#fff">5</text>
+    <rect x="118" y="106" width="26" height="20" rx="5" fill="#2a3a4e"/>
+    <text x="131" y="120" text-anchor="middle" font-size="13" font-family="sans-serif" font-weight="bold" fill="#fff">6</text>
+    <!-- tombol baris 3: 1 2 3 -->
+    <rect x="48" y="132" width="26" height="20" rx="5" fill="#2a3a4e"/>
+    <text x="61" y="146" text-anchor="middle" font-size="13" font-family="sans-serif" font-weight="bold" fill="#fff">1</text>
+    <rect x="83" y="132" width="26" height="20" rx="5" fill="#2a3a4e"/>
+    <text x="96" y="146" text-anchor="middle" font-size="13" font-family="sans-serif" font-weight="bold" fill="#fff">2</text>
+    <rect x="118" y="132" width="26" height="20" rx="5" fill="#2a3a4e"/>
+    <text x="131" y="146" text-anchor="middle" font-size="13" font-family="sans-serif" font-weight="bold" fill="#fff">3</text>
+    <!-- tombol OK hijau besar -->
+    <rect x="48" y="158" width="96" height="20" rx="5" fill="#2ecc71"/>
+    <text x="96" y="172" text-anchor="middle" font-size="13" font-family="sans-serif" font-weight="bold" fill="#fff">OK</text>
+  </svg>`;
+
+  const encoded = 'data:image/svg+xml,' + encodeURIComponent(iconSvg);
+  const manifest = {
+    name: "Kalkulator Pasar",
+    short_name: "Kalkulator Pasar",
+    description: "Kalkulator dengan catatan dan riwayat transaksi",
+    start_url: location.href,
+    scope: location.href,
+    display: "standalone",
+    orientation: "portrait",
+    background_color: "#1a7a3a",
+    theme_color: "#1a2535",
+    icons: [
+      { src: encoded, sizes: "192x192", type: "image/svg+xml", purpose: "any maskable" },
+      { src: encoded, sizes: "512x512", type: "image/svg+xml", purpose: "any maskable" }
+    ]
+  };
+  const blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('link');
+  link.rel = 'manifest';
+  link.href = url;
+  document.head.appendChild(link);
+
+  // Apple touch icon
+  const iconLink = document.createElement('link');
+  iconLink.rel = 'apple-touch-icon';
+  iconLink.href = encoded;
+  document.head.appendChild(iconLink);
+})();
+
+// ===== SERVICE WORKER INLINE =====
+if('serviceWorker' in navigator) {
+  const swCode = `
+    const CACHE = 'calcnote-v1';
+    self.addEventListener('install', e => {
+      self.skipWaiting();
+    });
+    self.addEventListener('activate', e => {
+      e.waitUntil(clients.claim());
+    });
+    self.addEventListener('fetch', e => {
+      e.respondWith(
+        caches.match(e.request).then(r => r || fetch(e.request).catch(() => new Response('offline')))
+      );
+    });
+  `;
+  const swBlob = new Blob([swCode], {type:'application/javascript'});
+  const swUrl = URL.createObjectURL(swBlob);
+  navigator.serviceWorker.register(swUrl, {scope: './'}).catch(()=>{});
+}
+
+// ===== PROMPT INSTALL PWA =====
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  // Tampilkan tombol install jika belum standalone
+  setTimeout(() => {
+    const btn = document.getElementById('installBtn');
+    if(btn) btn.style.display = 'flex';
+  }, 500);
+});
+window.addEventListener('appinstalled', () => {
+  const btn = document.getElementById('installBtn');
+  if(btn) btn.style.display = 'none';
+  deferredPrompt = null;
+});
+function doInstall() {
+  if(deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
+  }
+}
+// Sembunyikan tombol install kalau sudah standalone
+if(window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+  window.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('installBtn');
+    if(btn) btn.style.display = 'none';
+  });
+}
+</script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
+
+html,body{height:100%;width:100%;margin:0;padding:0;overflow:hidden}
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Nunito',sans-serif;-webkit-tap-highlight-color:transparent}
+
+#W{
+  position:fixed;top:0;left:0;right:0;bottom:0;
+  display:flex;flex-direction:column;
+  background:#f0f2f5;
+  overflow:hidden;
+}
+
+/* === HEADER === */
+#H{background:#fff;padding:6px 8px 0;flex-shrink:0;border-bottom:1px solid #ddd}
+#TD{background:#1a2535;border-radius:10px;text-align:center;padding:8px 10px;margin-bottom:6px;transform:rotate(180deg);display:flex;flex-direction:column;align-items:center;gap:2px}
+#HL{color:#ffdd00;font-size:clamp(12px,3vw,16px);font-weight:800;letter-spacing:3px;line-height:1;opacity:0.8;text-shadow:0 0 8px rgba(255,220,0,0.4)}
+#HT{color:#ffdd00;font-size:clamp(36px,11vw,58px);font-weight:900;letter-spacing:1px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;text-shadow:0 0 20px rgba(255,220,0,0.6),0 2px 0 #000}
+#TB{display:flex;background:#fff;border-top:1px solid #eee}
+.tab{flex:1;padding:9px 2px;text-align:center;font-size:clamp(13px,3.8vw,16px);font-weight:800;cursor:pointer;color:#aaa;border-bottom:3px solid transparent;white-space:nowrap;letter-spacing:0.3px}
+.tab.on{color:#1a2535;border-bottom:3px solid #1a2535;background:#f0f0f0}
+
+/* === TOMBOL INSTALL === */
+#installBtn{display:none;align-items:center;justify-content:center;gap:8px;background:#1a2535;color:#ffdd00;border:none;padding:8px 14px;font-size:13px;font-weight:800;cursor:pointer;width:100%;letter-spacing:1px}
+
+/* === CALCULATOR PANEL: flex column, fills all remaining === */
+#PC{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}
+
+/* === TRANSAKSI PANEL === */
+#PT{display:none;flex:1;min-height:0;flex-direction:column;overflow:hidden}
+
+/* === NOTE AREA: shrinks to give space to keyboard === */
+#NB{padding:4px 8px;flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;background:#fff;border-bottom:1px solid #eee}
+
+/* === ROW ITEMS === */
+.ln{display:flex;align-items:center;gap:6px;min-height:clamp(38px,10vw,50px);padding:4px 8px;cursor:pointer;border-bottom:1px solid #ebebeb}
+.ln:last-child{border-bottom:none}
+.ln.AL{background:#e8f0fe;border-bottom:1.5px solid #4285f4}
+.ln .nn{color:#bbb;font-size:clamp(11px,3vw,13px);font-weight:700;width:20px;text-align:right;flex-shrink:0}
+.ln .ee{flex:1;color:#111;font-size:clamp(16px,4.5vw,20px);font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;letter-spacing:0.3px}
+.ln .tt{color:#4285f4;font-size:clamp(11px,3vw,13px);max-width:90px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;flex-shrink:0;font-weight:700}
+.ln .rr{color:#1a7a3a;font-size:clamp(16px,4.5vw,20px);font-weight:800;min-width:55px;text-align:right;flex-shrink:0;letter-spacing:0.3px}
+
+/* === BAYAR BAR === */
+#BB{background:#d4edda;padding:6px 8px;display:flex;align-items:center;gap:4px;border-bottom:1px solid #b8dfc4;flex-shrink:0}
+.st{font-weight:800;font-size:clamp(11px,3vw,14px);cursor:pointer;padding:5px 8px;border-radius:6px;border:1px solid #ccc;background:#fff;flex-shrink:0;line-height:1.1;letter-spacing:0.3px}
+.st.on{color:#4285f4;background:#e8f0fe;border-color:#4285f4}
+.dv{width:1px;background:#b8dfc4;align-self:stretch;flex-shrink:0;margin:0 3px}
+.fc{display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;overflow:hidden}
+.fl{color:#3a6e4a;font-size:clamp(9px,2.5vw,12px);font-weight:800;white-space:nowrap;letter-spacing:0.5px}
+.fv{color:#3a6e4a;font-size:clamp(15px,4.5vw,21px);font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;line-height:1.2;letter-spacing:0.3px}
+.fv.ng{color:#e44}
+#BX{display:flex;flex-direction:column;align-items:center;flex:1.3;cursor:pointer;min-width:0;overflow:hidden}
+#BW{font-size:clamp(15px,4.5vw,21px);font-weight:800;color:#3a6e4a;background:#fff;border:2px solid #4285f4;border-radius:7px;padding:2px 8px;text-align:center;white-space:nowrap;overflow:hidden;max-width:100%;letter-spacing:0.3px}
+#BW.ed{border-color:#f90;color:#b80}
+
+/* === NUMPAD: flex:1 mengisi sisa layar otomatis === */
+#KN{display:flex;flex-direction:column;flex:1;min-height:0}
+.G{
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  grid-template-rows:repeat(4,1fr);
+  gap:2px;
+  background:#b8b8b8;
+  flex:1;
+  min-height:0;
+}
+.k{
+  background:#fff;
+  color:#111;
+  font-size:clamp(22px,6.5vw,32px);
+  font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;border:none;
+  user-select:none;width:100%;height:100%;
+  -webkit-user-select:none;
+  transition:background 0.07s;
+  letter-spacing:0.5px;
+}
+.k:active{background:#d0d0d0}
+.k.kr{background:#f90;color:#fff;font-size:clamp(13px,3.8vw,17px);font-weight:800;letter-spacing:0.5px}
+.k.kh{color:#e44;font-size:clamp(13px,3.8vw,17px);font-weight:800}
+.k.km{background:#fff3f3;color:#e44;font-weight:700}
+.k.kc{background:#f0f5ff;font-weight:700}
+.k.ke{background:#4285f4;color:#fff;font-size:clamp(13px,3.8vw,17px);font-weight:800;letter-spacing:0.5px}
+.k.ks{background:#2d9e4a;color:#fff;font-size:clamp(13px,3.8vw,17px);font-weight:800;letter-spacing:0.5px}
+
+/* === CURSOR === */
+.cur{display:inline-block;width:2px;height:14px;background:#4285f4;animation:bl 1s step-end infinite;vertical-align:text-bottom;margin-left:1px}
+.cb{background:#f90}
+@keyframes bl{0%,100%{opacity:1}50%{opacity:0}}
+
+/* === ABC KEYBOARD: flex:1 juga === */
+#KA{display:none;flex-direction:column;flex:1;min-height:0}
+.AW{background:#dde0ea;padding:4px 3px;display:flex;flex-direction:column;gap:3px;flex:1;min-height:0;justify-content:space-evenly}
+.AR{display:flex;justify-content:center;gap:3px}
+.ak{
+  background:#fff;color:#111;
+  font-size:clamp(14px,4vw,18px);
+  font-weight:700;
+  flex:1;max-width:44px;
+  height:clamp(42px,10vw,58px);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;border-radius:6px;border:1px solid #ccd;
+  user-select:none;-webkit-user-select:none;
+}
+.ak:active{background:#ccd}
+.akw{max-width:70px;font-size:clamp(9px,2.5vw,12px);color:#555;background:#c8ccd8;font-weight:700}
+.aks{max-width:180px;font-size:13px;color:#555;font-weight:600}
+.ake{max-width:80px;font-size:13px;color:#fff;background:#4285f4;font-weight:800}
+.akb{max-width:58px;font-size:15px;color:#e44;font-weight:800}
+
+/* === TRANSAKSI PAGE === */
+#PT_inner{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0}
+.SG{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;padding:10px 10px 5px;background:#1a2535}
+.SGI{background:#2a3a4e;border-radius:9px;padding:8px 6px;text-align:center}
+.SGL{font-size:clamp(10px,2.8vw,12px);color:#8a9aaa;font-weight:700;white-space:nowrap;letter-spacing:0.3px}
+.SGV{font-size:clamp(14px,4vw,18px);font-weight:900;color:#ffdd00;line-height:1.3;letter-spacing:0.3px}
+.SG2{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:0 10px 10px;background:#1a2535}
+.SGI2{background:#2a3a4e;border-radius:9px;padding:7px 10px;display:flex;justify-content:space-between;align-items:center}
+.SGL2{font-size:clamp(11px,3vw,13px);color:#8a9aaa;font-weight:700}
+.SGV2{font-size:clamp(14px,4vw,17px);font-weight:900;color:#4caf7d;letter-spacing:0.3px}
+.RH_sec{padding:8px 10px;background:#f0f2f5;border-bottom:1px solid #ddd}
+.RH_title{font-size:14px;font-weight:800;color:#3a4a5c;margin-bottom:6px;letter-spacing:0.3px}
+.FR{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.FR label{font-size:12px;color:#555;font-weight:700}
+.FR input{border:1px solid #ccc;border-radius:6px;padding:4px 6px;font-size:12px;color:#222;background:#fff;max-width:120px}
+.FR button{background:#4285f4;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;font-weight:700}
+.FR button.sc{background:#ddd;color:#555}
+.RI{background:#fff;border-radius:9px;border:1px solid #e0e0e0;padding:10px 12px;margin-bottom:8px}
+.RH{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.RD{font-size:11px;color:#999;font-weight:600}
+.RB{border:none;border-radius:5px;padding:3px 10px;font-size:12px;cursor:pointer;background:#ffeaea;color:#e44;font-weight:700}
+.RL{font-size:13px;color:#444;margin:5px 0;line-height:1.6;font-weight:600}
+.RF{margin-top:6px;font-size:13px;display:flex;gap:10px;flex-wrap:wrap;font-weight:700}
+#SLW{padding:8px 10px 12px}
+.DB{display:flex;align-items:center;justify-content:center;gap:8px;background:#2a3a4e;color:#fff;border:none;border-radius:9px;padding:12px;font-size:14px;cursor:pointer;width:100%;margin:0 0 8px;font-weight:800;letter-spacing:0.5px}
+.EM{text-align:center;padding:30px 20px;color:#bbb;font-size:14px;font-weight:600}
+</style>
+</head>
+<body>
+<div id="W">
+ <div id="H">
+  <button id="installBtn" onclick="doInstall()">
+   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v13M7 10l5 5 5-5M3 18h18"/></svg>
+   Install Kalkulator Pasar sebagai Aplikasi
+  </button>
+  <div id="TD"><div id="HL">TOTAL</div><div id="HT">0</div></div>
+  <div id="TB">
+   <div class="tab on" onclick="SP('c')">Kalkulator</div>
+   <div class="tab" onclick="SP('t')">Transaksi</div>
+  </div>
+ </div>
+
+ <div id="PC">
+  <div id="NB"></div>
+  <div id="BB">
+   <button class="st on" id="S1" onclick="ST('n')">123</button>
+   <button class="st" id="S2" onclick="ST('a')">ABC</button>
+   <div class="dv"></div>
+   <div class="fc"><div class="fl">KEMBALIAN</div><div class="fv" id="FK">0</div></div>
+   <div class="dv"></div>
+   <div id="BX" onclick="startB()"><div class="fl">BAYAR</div><div id="BW"><span id="BD">0</span></div></div>
+   <div class="dv"></div>
+   <div class="fc"><div class="fl">TOTAL</div><div class="fv" id="FT">0</div></div>
+  </div>
+  <div id="KN">
+   <div class="G">
+    <div class="k" data-v="7">7</div><div class="k" data-v="8">8</div><div class="k" data-v="9">9</div><div class="k" data-v="×">×</div><div class="k kr" data-v="RESET">Reset</div>
+    <div class="k" data-v="4">4</div><div class="k" data-v="5">5</div><div class="k" data-v="6">6</div><div class="k" data-v="÷">÷</div><div class="k kh" data-v="DEL">Hapus</div>
+    <div class="k" data-v="1">1</div><div class="k" data-v="2">2</div><div class="k" data-v="3">3</div><div class="k km" data-v="-">-</div><div class="k kc" data-v=",">,</div>
+    <div class="k" data-v="0">0</div><div class="k" data-v="00">00</div><div class="k" data-v="000">000</div><div class="k ke" data-v="ENTER">Enter</div><div class="k ks" data-v="SAVE">Save</div>
+   </div>
+  </div>
+  <div id="KA">
+   <div class="AW">
+    <div class="AR"><div class="ak" data-c="q">q</div><div class="ak" data-c="w">w</div><div class="ak" data-c="e">e</div><div class="ak" data-c="r">r</div><div class="ak" data-c="t">t</div><div class="ak" data-c="y">y</div><div class="ak" data-c="u">u</div><div class="ak" data-c="i">i</div><div class="ak" data-c="o">o</div><div class="ak" data-c="p">p</div></div>
+    <div class="AR"><div class="ak" data-c="a">a</div><div class="ak" data-c="s">s</div><div class="ak" data-c="d">d</div><div class="ak" data-c="f">f</div><div class="ak" data-c="g">g</div><div class="ak" data-c="h">h</div><div class="ak" data-c="j">j</div><div class="ak" data-c="k">k</div><div class="ak" data-c="l">l</div></div>
+    <div class="AR"><div class="ak akw" data-c="CAPS" id="CP">⇧ caps</div><div class="ak" data-c="z">z</div><div class="ak" data-c="x">x</div><div class="ak" data-c="c">c</div><div class="ak" data-c="v">v</div><div class="ak" data-c="b">b</div><div class="ak" data-c="n">n</div><div class="ak" data-c="m">m</div><div class="ak akb" data-c="BKSP">⌫</div></div>
+    <div class="AR"><div class="ak akw" data-c="CLRNOTE" style="color:#e44;font-size:10px">hapus catatan</div><div class="ak aks" data-c=" ">spasi</div><div class="ak ake" data-c="ENTER">↵ enter</div><div class="ak akw" data-c="DONE" style="color:#fff;background:#f90">selesai</div></div>
+   </div>
+  </div>
+ </div>
+
+ <div id="PT">
+  <div id="PT_inner">
+   <div class="SG" id="SBL_top"></div>
+   <div class="SG2" id="SBL_bot"></div>
+   <div style="padding:0 8px 4px;background:#1a2535">
+    <button class="DB" onclick="dl()">
+     <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3M2 12h12" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
+     Download Laporan (.txt)
+    </button>
+   </div>
+   <div class="RH_sec">
+    <div class="RH_title">Riwayat Transaksi</div>
+    <div class="FR">
+     <label>Dari:</label><input type="date" id="FD">
+     <label>Sampai:</label><input type="date" id="FS">
+     <button onclick="rSav()">Filter</button>
+     <button class="sc" onclick="cF()">Reset</button>
+    </div>
+   </div>
+   <div id="SLW"></div>
+  </div>
+ </div>
+</div>
+
+<script>
+const XAC=window.AudioContext||window.webkitAudioContext;
+let xac=null;
+function beep(t){
+  try{
+    if(!xac)xac=new XAC();
+    const o=xac.createOscillator(),g=xac.createGain();
+    o.connect(g);g.connect(xac.destination);
+    if(t==='s'){o.frequency.value=880;g.gain.setValueAtTime(0.15,xac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,xac.currentTime+0.2);}
+    else if(t==='d'){o.frequency.value=200;g.gain.setValueAtTime(0.1,xac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,xac.currentTime+0.1);}
+    else{o.frequency.value=660;g.gain.setValueAtTime(0.06,xac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,xac.currentTime+0.05);}
+    o.start();o.stop(xac.currentTime+0.2);
+  }catch(e){}
+}
+
+let ls=[{e:'',n:''}],ai=0,caps=false,mode='e',bs='',bm=false;
+let sd=(()=>{try{const r=localStorage.getItem('calcnote_sd');if(!r)return[];return JSON.parse(r).map(s=>({...s,rd:new Date(s.rd)}));}catch(e){return[];}})();
+
+function saveSd(){try{localStorage.setItem('calcnote_sd',JSON.stringify(sd));}catch(e){}}
+function fN(n){if(n===null||n===undefined||isNaN(n)||!isFinite(n))return'0';const s=n%1===0?n.toFixed(0):n.toFixed(4).replace(/\.?0+$/,'');return s.replace(/\B(?=(\d{3})+(?!\d))/g,'.');}
+function pN(s){return parseFloat(String(s).replace(/\./g,'').replace(',','.'))||0;}
+function evE(x){
+  if(!x||!x.trim())return null;
+  try{let e=x.replace(/×/g,'*').replace(/÷/g,'/').replace(/,/g,'.').trim();if(/[^0-9\+\-\*\/\.\(\)\s]/.test(e))return null;const r=Function('"use strict";return ('+e+')')();if(typeof r==='number'&&isFinite(r))return r;}
+  catch(x){}return null;
+}
+function eh(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function cT(){let t=0;ls.forEach(l=>{const r=evE(l.e);if(r!==null)t+=r;});return t;}
+function nS(){return new Date().toLocaleString('id-ID');}
+function tD0(d){const x=new Date(d);x.setHours(0,0,0,0);return x;}
+function startB(){bm=true;bs='';document.getElementById('BW').classList.add('ed');rF();}
+function stopB(){bm=false;document.getElementById('BW').classList.remove('ed');rF();}
+function rF(){
+  const tot=cT();const bv=bs?pN(bs):0;
+  document.getElementById('BD').innerHTML=bm?(eh(bs||'0')+'<span class="cur cb"></span>'):fN(bv);
+  const k=bv-tot;const ke=document.getElementById('FK');
+  ke.textContent=fN(k);ke.className='fv'+(k<0?' ng':'');
+  document.getElementById('FT').textContent=fN(tot);
+  document.getElementById('HT').textContent=fN(tot);
+}
+function rN(){
+  const nb=document.getElementById('NB');nb.innerHTML='';
+  ls.forEach((l,i)=>{
+    const res=evE(l.e);
+    const d=document.createElement('div');d.className='ln'+(i===ai?' AL':'');
+    const n=document.createElement('span');n.className='nn';n.textContent=i+1;d.appendChild(n);
+    const ex=document.createElement('span');ex.className='ee';
+    ex.innerHTML=(!bm&&i===ai&&mode==='e')?eh(l.e)+'<span class="cur"></span>':eh(l.e||'');
+    d.appendChild(ex);
+    if(l.n||(!bm&&i===ai&&mode==='n')){const nt=document.createElement('span');nt.className='tt';nt.innerHTML=(!bm&&i===ai&&mode==='n')?eh(l.n)+'<span class="cur"></span>':eh(l.n);d.appendChild(nt);}
+    if(res!==null){const rv=document.createElement('span');rv.className='rr';rv.textContent=fN(res);d.appendChild(rv);}
+    d.addEventListener('click',()=>{if(bm)stopB();ai=i;mode='e';rN();});
+    nb.appendChild(d);
+  });
+  const al=nb.querySelector('.AL');
+  if(al)al.scrollIntoView({block:'nearest',behavior:'smooth'});
+  rF();
+}
+function resetK(){ls=[{e:'',n:''}];ai=0;mode='e';bs='';bm=false;document.getElementById('BW').classList.remove('ed');}
+function eL(){while(ai>=ls.length)ls.push({e:'',n:''});}
+
+document.querySelectorAll('.k').forEach(k=>{
+  k.addEventListener('click',()=>{
+    const v=k.dataset.v;
+    beep(v==='SAVE'?'s':v==='DEL'||v==='RESET'?'d':'k');
+    if(bm){
+      if(v==='ENTER'||v==='SAVE'){if(v==='SAVE'){stopB();doSave();return;}stopB();return;}
+      if(v==='RESET'){bs='';rF();return;}
+      if(v==='DEL'){bs=bs.slice(0,-1);rF();return;}
+      if(['×','÷','+','-'].includes(v))return;
+      bs+=v;rF();return;
+    }
+    eL();const l=ls[ai];
+    if(v==='ENTER'){if(ai===ls.length-1)ls.push({e:'',n:''});ai++;eL();mode='e';}
+    else if(v==='DEL'){if(l.e.length>0){l.e=l.e.slice(0,-1);}else if(ls.length>1){ls.splice(ai,1);if(ai>=ls.length)ai=ls.length-1;}}
+    else if(v==='RESET'){resetK();}
+    else if(v==='SAVE'){doSave();return;}
+    else{l.e+=v;}
+    rN();
+  });
+});
+
+function doSave(){
+  const tot=cT();const snap=ls.filter(l=>l.e.trim()).map(l=>({e:l.e,n:l.n,r:evE(l.e)}));
+  if(snap.length>0){const bv=bs?pN(bs):0;sd.unshift({id:Date.now(),date:nS(),rd:new Date(),ls:snap,tot,bay:bv,kem:bv-tot});saveSd();}
+  resetK();rN();
+}
+
+document.querySelectorAll('.ak').forEach(k=>{
+  k.addEventListener('click',()=>{
+    const c=k.dataset.c;beep('k');eL();const l=ls[ai];
+    if(c==='CAPS'){caps=!caps;document.querySelectorAll('.ak').forEach(a=>{if(a.dataset.c&&a.dataset.c.length===1)a.textContent=caps?a.dataset.c.toUpperCase():a.dataset.c.toLowerCase();});document.getElementById('CP').style.color=caps?'#4285f4':'#555';}
+    else if(c==='BKSP'){if(mode==='n'){if(l.n.length>0)l.n=l.n.slice(0,-1);}else{if(l.e.length>0)l.e=l.e.slice(0,-1);}}
+    else if(c==='CLRNOTE'){l.n='';}
+    else if(c==='DEL'){if(ls.length>1){ls.splice(ai,1);if(ai>=ls.length)ai=ls.length-1;}else ls[0]={e:'',n:''};mode='e';}
+    else if(c==='ENTER'){if(ai===ls.length-1)ls.push({e:'',n:''});ai++;eL();mode='n';}
+    else if(c==='DONE'){mode='e';ST('n');return;}
+    else if(c===' '){if(mode==='n')l.n+=' ';else l.e+=' ';}
+    else{const ch=caps?c.toUpperCase():c;if(mode==='n')l.n+=ch;else l.e+=ch;}
+    rN();
+  });
+});
+
+function ST(t){
+  document.getElementById('KN').style.display=t==='n'?'flex':'none';
+  document.getElementById('KA').style.display=t==='a'?'flex':'none';
+  document.getElementById('S1').className='st'+(t==='n'?' on':'');
+  document.getElementById('S2').className='st'+(t==='a'?' on':'');
+  if(t==='a'&&mode==='e')mode='n';if(t==='n')mode='e';rN();
+}
+function SP(p){
+  document.getElementById('PC').style.display=p==='c'?'flex':'none';
+  document.getElementById('PT').style.display=p==='t'?'flex':'none';
+  document.querySelectorAll('.tab').forEach((t,i)=>{t.className='tab'+(['c','t'][i]===p?' on':'');});
+  if(p==='t'){rStat();rSav();}
+}
+function cF(){document.getElementById('FD').value='';document.getElementById('FS').value='';rSav();}
+function rSav(){
+  const w=document.getElementById('SLW');
+  const dari=document.getElementById('FD').value,sam=document.getElementById('FS').value;
+  let data=sd;
+  if(dari){const d=new Date(dari);data=data.filter(s=>tD0(s.rd)>=d);}
+  if(sam){const d=new Date(sam);d.setHours(23,59,59);data=data.filter(s=>new Date(s.rd)<=d);}
+  if(data.length===0){w.innerHTML='<div class="EM">'+(sd.length===0?'Belum ada riwayat.<br>Tekan Save untuk menyimpan.':'Tidak ada data untuk filter ini.')+'</div>';return;}
+  w.innerHTML=data.map(s=>`<div class="RI"><div class="RH"><span class="RD">${eh(s.date)}</span><button class="RB" onclick="dS(${s.id})">Hapus</button></div><div class="RL">${s.ls.map(l=>`${eh(l.e)}${l.n?' <span style="color:#4285f4">('+eh(l.n)+')</span>':''} = <b>${fN(l.r)}</b>`).join('<br>')}</div><div class="RF"><span style="color:#3a6e4a;font-weight:700">Total: ${fN(s.tot)}</span>${s.bay?`<span style="color:#666">Bayar: ${fN(s.bay)}</span><span style="color:${s.kem>=0?'#2d9e4a':'#e44'};font-weight:700"> Kembali: ${fN(s.kem)}</span>`:''}</div></div>`).join('');
+}
+function dS(id){if(!confirm('Hapus data ini?'))return;sd=sd.filter(s=>s.id!==id);saveSd();rSav();rStat();}
+function sP(d){return d.reduce((a,s)=>a+s.tot,0);}
+function fDay(d,off){const t=new Date();t.setDate(t.getDate()+off);const ds=t.toDateString();return d.filter(s=>new Date(s.rd).toDateString()===ds);}
+function fDays(d,n){const t=new Date();t.setDate(t.getDate()-n);return d.filter(s=>new Date(s.rd)>=t);}
+function rStat(){
+  const top=[{l:'Hari Ini',v:sP(fDay(sd,0))},{l:'Kemarin',v:sP(fDay(sd,-1))},{l:'7 Hari',v:sP(fDays(sd,7))}];
+  const bot=[{l:'30 Hari',v:sP(fDays(sd,30))},{l:'Total Semua',v:sP(sd)},{l:'Sesi',v:sd.length},{l:'Sesi Hari Ini',v:fDay(sd,0).length}];
+  document.getElementById('SBL_top').innerHTML=top.map(b=>`<div class="SGI"><div class="SGL">${eh(b.l)}</div><div class="SGV">${fN(b.v)}</div></div>`).join('');
+  document.getElementById('SBL_bot').innerHTML=bot.map(b=>`<div class="SGI2"><span class="SGL2">${eh(b.l)}</span><span class="SGV2">${fN(b.v)}</span></div>`).join('');
+}
+function dl(){
+  const now=new Date();
+  let txt='LAPORAN CALCNOTE\nDiekspor: '+now.toLocaleString('id-ID')+'\n'+'='.repeat(40)+'\n\n';
+  txt+=`Hari Ini    : ${fN(sP(fDay(sd,0)))}\nKemarin     : ${fN(sP(fDay(sd,-1)))}\n7 Hari      : ${fN(sP(fDays(sd,7)))}\n30 Hari     : ${fN(sP(fDays(sd,30)))}\nTotal Semua : ${fN(sP(sd))}\nSesi        : ${sd.length}\n\n`+'-'.repeat(40)+'\nDETAIL SESI:\n\n';
+  sd.forEach((s,i)=>{txt+=`[${i+1}] ${s.date}\n`;s.ls.forEach(l=>{txt+=`  ${l.e}${l.n?' ('+l.n+')':''} = ${fN(l.r)}\n`;});txt+=`  Total: ${fN(s.tot)}${s.bay?' | Bayar: '+fN(s.bay)+' | Kembali: '+fN(s.kem):''}\n\n`;});
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/plain'}));a.download='calcnote-'+now.toISOString().slice(0,10)+'.txt';a.click();
+}
+rN();
+</script>
+</body>
+</html>
